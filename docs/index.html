@@ -1,0 +1,398 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TortugaVerse</title>
+<style>
+:root {
+  --bg: #101827;
+  --panel: #1b2940;
+  --accent: #79f2a6;
+  --text: #edf4ff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 15px system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+button, input, textarea { font: inherit; }
+button {
+  cursor: pointer;
+  color: var(--text);
+  background: #263955;
+  border: 1px solid #405575;
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+button:hover { border-color: var(--accent); }
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  background: #0a111e;
+  border-bottom: 1px solid #30415a;
+}
+header strong { color: var(--accent); }
+#desktop {
+  min-height: calc(100vh - 65px);
+  padding: 22px;
+  background:
+    radial-gradient(ellipse at 20% 20%, #244b50 0, transparent 42%),
+    radial-gradient(ellipse at 85% 80%, #26315a 0, transparent 45%),
+    var(--bg);
+}
+.apps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.apps button { min-width: 105px; }
+.window {
+  max-width: 820px;
+  margin: 0 auto 18px;
+  border: 1px solid #455a77;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #101a2a;
+  box-shadow: 0 16px 50px #0006;
+}
+.window-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  background: var(--panel);
+}
+.window-bar strong { color: var(--accent); }
+.window-body { padding: 15px; }
+#output {
+  height: 250px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 14px/1.65 ui-monospace, monospace;
+}
+.green { color: var(--accent); }
+#command {
+  width: 100%;
+  padding: 12px;
+  color: var(--accent);
+  background: #080e17;
+  border: 1px solid #405575;
+  border-radius: 8px;
+  outline-color: var(--accent);
+}
+#files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+#note {
+  width: 100%;
+  min-height: 160px;
+  padding: 12px;
+  color: var(--text);
+  background: #080e17;
+  border: 1px solid #405575;
+  border-radius: 8px;
+}
+.small { color: #a9bad2; font-size: 13px; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <strong>🐢 TortugaVerse</strong>
+  <span id="clock">Iniciando...</span>
+</header>
+
+<main id="desktop">
+  <h2>Mi computadora virtual</h2>
+  <p class="small">Un pequeño universo programable que vive en tu navegador.</p>
+
+  <nav class="apps">
+    <button onclick="showApp('terminal')">⌨️ Terminal</button>
+    <button onclick="showApp('files')">📁 Archivos</button>
+    <button onclick="showApp('notes')">📝 Bloc de notas</button>
+    <button onclick="showApp('about')">🐢 Acerca de</button>
+  </nav>
+
+  <section id="terminal" class="window">
+    <div class="window-bar">
+      <strong>Terminal — BacoShell</strong>
+      <button onclick="showApp('terminal')">Abrir</button>
+    </div>
+    <div class="window-body">
+      <div id="output"></div>
+      <form id="terminal-form">
+        <input id="command" autocomplete="off"
+          placeholder="Escribe help y pulsa Enter">
+      </form>
+    </div>
+  </section>
+
+  <section id="files" class="window hidden">
+    <div class="window-bar">
+      <strong>Explorador de archivos</strong>
+      <button onclick="showApp('files')">Abrir</button>
+    </div>
+    <div class="window-body">
+      <div id="file-list"></div>
+      <p class="small">Selecciona un archivo para abrirlo en el bloc.</p>
+    </div>
+  </section>
+
+  <section id="notes" class="window hidden">
+    <div class="window-bar">
+      <strong>Bloc de notas</strong>
+      <button onclick="saveNote()">Guardar</button>
+    </div>
+    <div class="window-body">
+      <input id="note-name" placeholder="nombre.txt"
+        value="bienvenida.txt">
+      <p></p>
+      <textarea id="note" placeholder="Escribe algo..."></textarea>
+      <p><button onclick="saveNote()">💾 Guardar archivo</button></p>
+      <p class="small" id="note-status"></p>
+    </div>
+  </section>
+
+  <section id="about" class="window hidden">
+    <div class="window-bar">
+      <strong>Acerca de TortugaVerse</strong>
+      <button onclick="showApp('about')">Abrir</button>
+    </div>
+    <div class="window-body">
+      <h2>🐢 ¡Hola, explorador!</h2>
+      <p>TortugaVerse es un simulador de computadora programado
+      con HTML, CSS y JavaScript.</p>
+      <p>Sus archivos son virtuales: no modifica los archivos
+      reales de tu dispositivo.</p>
+      <p>Versión 0.1.0</p>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const STORAGE = "tortugaverse-files-v1";
+
+let files = {};
+try {
+  const saved = JSON.parse(localStorage.getItem(STORAGE) || "{}");
+  if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+    for (const [name, value] of Object.entries(saved)) {
+      if (typeof value === "string" &&
+          !name.includes("..") &&
+          !name.startsWith("/")) {
+        files[name] = value;
+      }
+    }
+  }
+} catch {
+  files = {};
+}
+
+if (!Object.keys(files).length) {
+  files["bienvenida.txt"] =
+    "¡Bienvenido a TortugaVerse! 🐢\nEscribe help en la terminal.";
+}
+
+function persist() {
+  try {
+    localStorage.setItem(STORAGE, JSON.stringify(files));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function showApp(id) {
+  for (const section of document.querySelectorAll("main > section")) {
+    section.classList.toggle("hidden", section.id !== id);
+  }
+  if (id === "files") renderFiles();
+  if (id === "terminal") $("command").focus();
+}
+
+function print(text = "") {
+  const line = document.createElement("div");
+  line.textContent = String(text);
+  $("output").appendChild(line);
+  $("output").scrollTop = $("output").scrollHeight;
+}
+
+function renderFiles() {
+  const list = $("file-list");
+  list.replaceChildren();
+  const names = Object.keys(files).sort();
+
+  if (!names.length) {
+    list.textContent = "Esta computadora está vacía.";
+    return;
+  }
+
+  for (const name of names) {
+    const button = document.createElement("button");
+    button.textContent = "📄 " + name;
+    button.addEventListener("click", () => openNote(name));
+    list.appendChild(button);
+  }
+}
+
+function openNote(name) {
+  if (!(name in files)) return;
+  $("note-name").value = name;
+  $("note").value = files[name];
+  $("note-status").textContent = "Archivo abierto: " + name;
+  showApp("notes");
+}
+
+function validName(name) {
+  return /^[\p{L}\p{N}_ .-]+$/u.test(name) &&
+    name.trim() !== "." && name.trim() !== "..";
+}
+
+function saveNote() {
+  const name = $("note-name").value.trim();
+  if (!validName(name) || name.length > 100) {
+    $("note-status").textContent =
+      "Nombre no válido. Usa letras, números, espacios, . _ o -.";
+    return;
+  }
+  files[name] = $("note").value;
+  const ok = persist();
+  $("note-status").textContent = ok
+    ? "Guardado correctamente: " + name
+    : "No se pudo guardar en el navegador.";
+  renderFiles();
+}
+
+function execute(raw) {
+  const input = raw.trim();
+  if (!input) return;
+
+  print("baco@tortugaverse:~$ " + input);
+  const [cmd, ...parts] = input.split(/\s+/);
+  const arg = parts.join(" ");
+
+  switch (cmd.toLowerCase()) {
+    case "help":
+    case "ayuda":
+      print("Comandos disponibles:");
+      print("help       — mostrar esta ayuda");
+      print("clear      — limpiar la terminal");
+      print("whoami     — mostrar usuario");
+      print("date       — fecha y hora");
+      print("echo texto — imprimir texto");
+      print("ls         — listar archivos");
+      print("cat nombre.txt — leer archivo");
+      print("touch nombre.txt — crear archivo");
+      print("mkdir nombre — crear carpeta simulada");
+      print("write nombre.txt texto — escribir archivo");
+      print("open nombre.txt — abrir archivo en el bloc");
+      print("apps       — listar aplicaciones");
+      print("about      — información del sistema");
+      break;
+
+    case "clear":
+      $("output").replaceChildren();
+      break;
+
+    case "whoami":
+      print("baco");
+      break;
+
+    case "date":
+      print(new Date().toLocaleString());
+      break;
+
+    case "echo":
+      print(arg);
+      break;
+
+    case "ls":
+      print(Object.keys(files).sort().join("\n") || "(vacío)");
+      break;
+
+    case "cat":
+      if (arg in files) print(files[arg]);
+      else print("Archivo no encontrado.");
+      break;
+
+    case "touch":
+      if (!validName(arg)) {
+        print("Nombre no válido.");
+        break;
+      }
+      if (!(arg in files)) files[arg] = "";
+      print(persist() ? "Archivo listo: " + arg : "Error al guardar.");
+      renderFiles();
+      break;
+
+    case "mkdir":
+      if (!validName(arg)) {
+        print("Nombre no válido.");
+        break;
+      }
+      print("Carpetas aún no implementadas: " +
+        "esta versión solo guarda archivos.");
+      break;
+
+    case "write": {
+      const match = input.match(/^write\s+(\S+)\s+([\s\S]*)$/i);
+      if (!match || !validName(match[1])) {
+        print("Uso: write nombre.txt texto");
+        break;
+      }
+      files[match[1]] = match[2];
+      print(persist() ? "Archivo guardado." : "Error al guardar.");
+      renderFiles();
+      break;
+    }
+
+    case "open":
+      if (arg in files) openNote(arg);
+      else print("Archivo no encontrado.");
+      break;
+
+    case "apps":
+      print("Terminal, Archivos, Bloc de notas, Acerca de");
+      break;
+
+    case "about":
+      print("TortugaVerse 0.1.0 — BacoShell");
+      print("Sistema virtual educativo; no es un sistema operativo real.");
+      break;
+
+    default:
+      print("Comando desconocido. Escribe help.");
+  }
+}
+
+$("terminal-form").addEventListener("submit", event => {
+  event.preventDefault();
+  execute($("command").value);
+  $("command").value = "";
+});
+
+function tick() {
+  $("clock").textContent = new Date().toLocaleTimeString();
+}
+tick();
+setInterval(tick, 1000);
+
+print("🐢 Bienvenido a BacoShell.");
+print("Escribe help para ver los comandos.");
+renderFiles();
+</script>
+</body>
+</html>
